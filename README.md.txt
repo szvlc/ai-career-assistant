@@ -22,3 +22,6 @@ Sprawdź jak działa bot tutaj: [Link do Twojego Space na Hugging Face]
 2. Zainstaluj wymagane biblioteki: `pip install -r requirements.txt`.
 3. Stwórz plik `.env` i dodaj w nim: `OPENAI_API_KEY=twoj_klucz`.
 4. Uruchom aplikację: `python app.py`.
+
+🌐 Live Demo
+Przetestuj bota tutaj: [https://huggingface.co/spaces/Aleksnader/career_conversations](https://huggingface.co/spaces/Aleksnader/career_conversations)
