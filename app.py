@@ -6,10 +6,10 @@ import requests
 from pypdf import PdfReader
 import gradio as gr
 
-# 1. Wczytywanie zmiennych środowiskowych
+# 1. Load environment variables
 load_dotenv(override=True)
 
-# --- NARZĘDZIA (TOOLS) ---
+# --- TOOLS ---
 
 def push(text):
     requests.post(
@@ -26,19 +26,19 @@ def record_user_details(email, name="Name not provided", notes="not provided"):
     return {"recorded": "ok"}
 
 def record_unknown_question(question):
-    push(f"Recording {question}")
+    push(f"Recording unknown question: {question}")
     return {"recorded": "ok"}
 
-# --- DEFINICJE JSON DLA NARZĘDZI ---
+# --- TOOL JSON DEFINITIONS ---
 
 record_user_details_json = {
     "name": "record_user_details",
-    "description": "Use this tool to record that a user is interested in being in touch and provided an email address",
+    "description": "Use this tool to record that a user is interested in staying in touch and provided an email address",
     "parameters": {
         "type": "object",
         "properties": {
             "email": {"type": "string", "description": "The email address of this user"},
-            "name": {"type": "string", "description": "The user's name, if they provided it"},
+            "name": {"type": "string", "description": "The user's name, if provided"},
             "notes": {"type": "string", "description": "Additional context about the conversation"}
         },
         "required": ["email"],
@@ -64,20 +64,20 @@ tools = [
     {"type": "function", "function": record_unknown_question_json}
 ]
 
-# --- KLASA GŁÓWNA ---
+# --- MAIN CLASS ---
 
 class Me:
     def __init__(self):
-        # Inicjalizacja klienta OpenAI (używa klucza z .env automatycznie)
-        self.openai = OpenAI() 
-        self.name = "Aleksander Szulc" 
-        
-        # Ustalanie ścieżek do Twoich plików
+        # Initialize OpenAI client (uses API key from .env automatically)
+        self.openai = OpenAI()
+        self.name = "Aleksander Szulc"
+
+        # File paths
         current_dir = os.path.dirname(os.path.abspath(__file__))
         pdf_path = os.path.join(current_dir, "me", "linkedin.pdf")
         summary_path = os.path.join(current_dir, "me", "summary.txt")
 
-        # Wczytywanie LinkedIn PDF
+        # Load LinkedIn PDF
         self.linkedin = ""
         try:
             reader = PdfReader(pdf_path)
@@ -86,16 +86,16 @@ class Me:
                 if text:
                     self.linkedin += text
         except Exception as e:
-            print(f"Błąd wczytywania PDF: {e}")
-            self.linkedin = "Brak danych z LinkedIn."
+            print(f"Error loading PDF: {e}")
+            self.linkedin = "No LinkedIn data available."
 
-        # Wczytywanie Summary TXT
+        # Load Summary TXT
         try:
             with open(summary_path, "r", encoding="utf-8") as f:
                 self.summary = f.read()
         except Exception as e:
-            print(f"Błąd wczytywania Summary: {e}")
-            self.summary = "Brak podsumowania."
+            print(f"Error loading summary: {e}")
+            self.summary = "No summary available."
 
     def handle_tool_call(self, tool_calls):
         results = []
@@ -105,13 +105,19 @@ class Me:
             print(f"Tool called: {tool_name}", flush=True)
             tool = globals().get(tool_name)
             result = tool(**arguments) if tool else {}
-            results.append({"role": "tool", "content": json.dumps(result), "tool_call_id": tool_call.id})
+            results.append(
+                {
+                    "role": "tool",
+                    "content": json.dumps(result),
+                    "tool_call_id": tool_call.id
+                }
+            )
         return results
-    
+
     def system_prompt(self):
         prompt = f"""You are acting as {self.name}. You are answering questions on your personal website.
-Your responsibility is to represent yourself faithfully based on the following background.
-Be professional, engaging, and polite.
+Your responsibility is to represent yourself accurately based on the following background.
+Be professional, friendly, and helpful.
 
 ## Summary:
 {self.summary}
@@ -119,22 +125,25 @@ Be professional, engaging, and polite.
 ## LinkedIn Profile:
 {self.linkedin}
 
-If you don't know an answer, use the 'record_unknown_question' tool. 
-If the user wants to stay in touch, use 'record_user_details' to get their email."""
+If you don't know the answer, use the 'record_unknown_question' tool.
+If the user wants to stay in touch, ask for their email and use 'record_user_details'.
+"""
         return prompt
-    
+
     def chat(self, message, history):
         try:
-            messages = [{"role": "system", "content": self.system_prompt()}] + history + [{"role": "user", "content": message}]
+            messages = [{"role": "system", "content": self.system_prompt()}] + history + [
+                {"role": "user", "content": message}
+            ]
+
             done = False
             while not done:
-                # Korzystamy z modelu OpenAI
                 response = self.openai.chat.completions.create(
-                    model="gpt-4o-mini", 
-                    messages=messages, 
+                    model="gpt-4o-mini",
+                    messages=messages,
                     tools=tools
                 )
-                
+
                 if response.choices[0].finish_reason == "tool_calls":
                     msg_obj = response.choices[0].message
                     tool_calls = msg_obj.tool_calls
@@ -143,14 +152,20 @@ If the user wants to stay in touch, use 'record_user_details' to get their email
                     messages.extend(results)
                 else:
                     done = True
-                    
-            return response.choices[0].message.content
-        except Exception as e:
-            print(f"BŁĄD OPENAI: {e}")
-            return f"Błąd połączenia z OpenAI: {str(e)}"
 
-# --- URUCHOMIENIE ---
+            return response.choices[0].message.content
+
+        except Exception as e:
+            print(f"OPENAI ERROR: {e}")
+            return f"OpenAI connection error: {str(e)}"
+
+# --- RUN APP ---
 
 if __name__ == "__main__":
     me = Me()
-    gr.ChatInterface(me.chat, type="messages").launch()
+    gr.ChatInterface(
+        me.chat,
+        type="messages",
+        title="Chat with Aleksander Szulc",
+        description="Ask me anything about my experience, projects, or background."
+    ).launch()
