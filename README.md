@@ -17,9 +17,9 @@ Python – backend logic
 OpenAI API – AI engine
 Gradio – user interface
 Hugging Face Spaces – app hosting
-🌐 Live Demo
 
-Try the bot here: AI Career Assistant on Hugging Face
+🌐 Live Demo
+https://huggingface.co/spaces/Aleksnader/career_conversations
 
 🔧 How to Run Locally
 Clone the repository
