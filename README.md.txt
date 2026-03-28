@@ -1,24 +1,30 @@
 🤖 AI Career Assistant
 
-Interaktywny asystent kariery zbudowany w Pythonie, wykorzystujący model GPT-4o-mini do pomocy w przygotowaniach do rekrutacji.
+An interactive career assistant built in Python that uses the GPT-4o-mini model to help users prepare for job recruitment.
 
-🚀 O projekcie
-Aplikacja pozwala użytkownikowi na rozmowę z modelem AI wyspecjalizowanym w doradztwie zawodowym. Potrafi:
-- Pomóc w pisaniu CV.
-- Przeprowadzić symulację rozmowy kwalifikacyjnej.
-- Odpowiedzieć na pytania dotyczące rynku pracy.
+🚀 About the Project
+This application allows users to chat with an AI model specialized in career guidance. It can:
 
-🛠️ Technologie
-- **Python** (Backend)
-- **OpenAI API** (Silnik AI)
-- **Gradio** (Interfejs użytkownika)
-- **Hugging Face Spaces** (Hosting aplikacji)
+Help write and improve a CV/resume.
+Run mock job interviews.
+Answer questions about the job market and career development.
+
+The assistant is bilingual (Polish 🇵🇱 / English 🇬🇧), so users can interact with it in either language.
+
+🛠️ Technologies
+
+Python (Backend)
+OpenAI API (AI engine)
+Gradio (User interface)
+Hugging Face Spaces (App hosting)
 
 🌐 Live Demo
-Sprawdź jak działa bot tutaj: https://huggingface.co/spaces/Aleksnader/career_conversations
+Check out how the bot works here:
+https://huggingface.co/spaces/Aleksnader/career_conversations
 
-🔧 Jak uruchomić lokalnie?
-1. Sklonuj repozytorium.
-2. Zainstaluj wymagane biblioteki: `pip install -r requirements.txt`.
-3. Stwórz plik `.env` i dodaj w nim: `OPENAI_API_KEY=twoj_klucz`.
-4. Uruchom aplikację: `python app.py`.
+🔧 How to Run Locally
+
+Clone the repository.
+Install the required libraries: pip install -r requirements.txt
+Create a .env file and add: OPENAI_API_KEY=your_key
+Run the application: python app.py
