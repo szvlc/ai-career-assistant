@@ -6,11 +6,10 @@ import requests
 from pypdf import PdfReader
 import gradio as gr
 
-# 1. Load environment variables
+# Load environment variables
 load_dotenv(override=True)
 
-# --- TOOLS ---
-
+# Send notification (lead or unknown question)
 def push(text):
     requests.post(
         "https://api.pushover.net/1/messages.json",
@@ -21,25 +20,35 @@ def push(text):
         }
     )
 
+# Tool: save user contact details
 def record_user_details(email, name="Name not provided", notes="not provided"):
-    push(f"Recording {name} with email {email} and notes {notes}")
+    push(f"Recording lead: {name}, email: {email}, notes: {notes}")
     return {"recorded": "ok"}
 
+# Tool: save unanswered questions
 def record_unknown_question(question):
-    push(f"Recording unknown question: {question}")
+    push(f"Unknown question: {question}")
     return {"recorded": "ok"}
 
-# --- TOOL JSON DEFINITIONS ---
-
+# Tool definitions
 record_user_details_json = {
     "name": "record_user_details",
-    "description": "Use this tool to record that a user is interested in staying in touch and provided an email address",
+    "description": "Use this tool to record that a user wants to stay in touch and provided an email address",
     "parameters": {
         "type": "object",
         "properties": {
-            "email": {"type": "string", "description": "The email address of this user"},
-            "name": {"type": "string", "description": "The user's name, if provided"},
-            "notes": {"type": "string", "description": "Additional context about the conversation"}
+            "email": {
+                "type": "string",
+                "description": "The user's email address"
+            },
+            "name": {
+                "type": "string",
+                "description": "The user's name if provided"
+            },
+            "notes": {
+                "type": "string",
+                "description": "Additional context about the conversation"
+            }
         },
         "required": ["email"],
         "additionalProperties": False
@@ -48,11 +57,14 @@ record_user_details_json = {
 
 record_unknown_question_json = {
     "name": "record_unknown_question",
-    "description": "Always use this tool to record any question that couldn't be answered",
+    "description": "Always use this tool if the assistant cannot answer a question",
     "parameters": {
         "type": "object",
         "properties": {
-            "question": {"type": "string", "description": "The question that couldn't be answered"}
+            "question": {
+                "type": "string",
+                "description": "The question that could not be answered"
+            }
         },
         "required": ["question"],
         "additionalProperties": False
@@ -64,12 +76,17 @@ tools = [
     {"type": "function", "function": record_unknown_question_json}
 ]
 
-# --- MAIN CLASS ---
-
 class Me:
+
     def __init__(self):
-        # Initialize OpenAI client (uses API key from .env automatically)
-        self.openai = OpenAI()
+        # Gemini endpoint (OpenAI-compatible)
+        self.GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+        self.GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+        self.openai = OpenAI(
+            base_url=self.GEMINI_BASE_URL,
+            api_key=self.GOOGLE_API_KEY
+        )
+
         self.name = "Aleksander Szulc"
 
         # File paths
@@ -77,7 +94,7 @@ class Me:
         pdf_path = os.path.join(current_dir, "me", "linkedin.pdf")
         summary_path = os.path.join(current_dir, "me", "summary.txt")
 
-        # Load LinkedIn PDF
+        # Load LinkedIn profile
         self.linkedin = ""
         try:
             reader = PdfReader(pdf_path)
@@ -85,87 +102,95 @@ class Me:
                 text = page.extract_text()
                 if text:
                     self.linkedin += text
-        except Exception as e:
-            print(f"Error loading PDF: {e}")
-            self.linkedin = "No LinkedIn data available."
+        except:
+            self.linkedin = "LinkedIn data not available."
 
-        # Load Summary TXT
+        # Load summary
         try:
             with open(summary_path, "r", encoding="utf-8") as f:
                 self.summary = f.read()
-        except Exception as e:
-            print(f"Error loading summary: {e}")
-            self.summary = "No summary available."
+        except:
+            self.summary = "Summary not available."
 
     def handle_tool_call(self, tool_calls):
         results = []
         for tool_call in tool_calls:
             tool_name = tool_call.function.name
             arguments = json.loads(tool_call.function.arguments)
+
             print(f"Tool called: {tool_name}", flush=True)
+
             tool = globals().get(tool_name)
             result = tool(**arguments) if tool else {}
-            results.append(
-                {
-                    "role": "tool",
-                    "content": json.dumps(result),
-                    "tool_call_id": tool_call.id
-                }
-            )
+
+            results.append({
+                "role": "tool",
+                "content": json.dumps(result),
+                "tool_call_id": tool_call.id
+            })
+
         return results
 
     def system_prompt(self):
-        prompt = f"""You are acting as {self.name}. You are answering questions on your personal website.
-Your responsibility is to represent yourself accurately based on the following background.
-Be professional, friendly, and helpful.
-
-## Summary:
-{self.summary}
-
-## LinkedIn Profile:
-{self.linkedin}
-
-If you don't know the answer, use the 'record_unknown_question' tool.
-If the user wants to stay in touch, ask for their email and use 'record_user_details'.
+        system_prompt = f"""
+You are acting as {self.name}.
+IMPORTANT:
+Always respond in English.
+You are answering questions on {self.name}'s personal website.
+Your role is to represent {self.name} professionally to potential recruiters,
+clients, or collaborators.
+Focus on:
+- career
+- skills
+- experience
+- projects
+- background
+If you don't know the answer, use the record_unknown_question tool.
+If the user is interested or engaged in conversation,
+ask if they would like to stay in touch and collect their email
+using the record_user_details tool.
 """
-        return prompt
+
+        system_prompt += f"\n\n## Summary:\n{self.summary}\n"
+        system_prompt += f"\n## LinkedIn Profile:\n{self.linkedin}\n"
+
+        return system_prompt
 
     def chat(self, message, history):
-        try:
-            messages = [{"role": "system", "content": self.system_prompt()}] + history + [
-                {"role": "user", "content": message}
-            ]
+        messages = [{"role": "system", "content": self.system_prompt()}] + history + [
+            {"role": "user", "content": message}
+        ]
 
-            done = False
-            while not done:
-                response = self.openai.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=messages,
-                    tools=tools
-                )
+        done = False
 
-                if response.choices[0].finish_reason == "tool_calls":
-                    msg_obj = response.choices[0].message
-                    tool_calls = msg_obj.tool_calls
-                    results = self.handle_tool_call(tool_calls)
-                    messages.append(msg_obj)
-                    messages.extend(results)
-                else:
-                    done = True
+        while not done:
+            response = self.openai.chat.completions.create(
+                model="gemini-2.5-flash-preview-05-20",
+                messages=messages,
+                tools=tools
+            )
 
-            return response.choices[0].message.content
+            if response.choices[0].finish_reason == "tool_calls":
+                message = response.choices[0].message
+                tool_calls = message.tool_calls
 
-        except Exception as e:
-            print(f"OPENAI ERROR: {e}")
-            return f"OpenAI connection error: {str(e)}"
+                results = self.handle_tool_call(tool_calls)
 
-# --- RUN APP ---
+                messages.append(message)
+                messages.extend(results)
+            else:
+                done = True
+
+        return response.choices[0].message.content
+
 
 if __name__ == "__main__":
     me = Me()
+
     gr.ChatInterface(
         me.chat,
         type="messages",
-        title="Chat with Aleksander Szulc",
-        description="Ask me anything about my experience, projects, or background."
+        title="AI Career Assistant",
+        description="Chat with my AI assistant to learn more about my experience, skills, and projects.",
+        theme="soft"
     ).launch()
